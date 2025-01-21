@@ -3,6 +3,11 @@ import uuid
 from django.contrib.auth.models import BaseUserManager
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.validators import RegexValidator, EmailValidator
+from django.contrib.postgres.search import SearchVectorField
+from django.contrib.postgres.indexes import GinIndex
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from django.contrib.postgres.search import SearchVector
 from django.utils import timezone
 
 class CustomUserManager(BaseUserManager):
@@ -18,18 +23,20 @@ class CustomUserManager(BaseUserManager):
         return user
 
     def create_superuser(self, phone_number, name, password=None, **extra_fields):
-        extra_fields.set_defaults(is_staff=True, is_superuser=True)
-        
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('is_active', True)
+
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Superuser must have is_staff=True.')
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('Superuser must have is_superuser=True.')
-        
+
         return self.create_user(phone_number, name, password, **extra_fields)
     
 
 class User(AbstractBaseUser, PermissionsMixin):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False),
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     phone_regex = RegexValidator(
         regex=r'^\+?1?\d{9,15}$',
@@ -45,6 +52,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    name_search_vector = SearchVectorField(null=True)
     
     USERNAME_FIELD = 'phone_number'
     REQUIRED_FIELDS = ['name']
@@ -57,7 +65,15 @@ class User(AbstractBaseUser, PermissionsMixin):
             models.Index(fields=['phone_number']),
             models.Index(fields=['name']),
             models.Index(fields=['email']),
+            GinIndex(fields=['name_search_vector']),
         ]
     
     def __str__(self):
         return f"{self.name} ({self.phone_number})"
+    
+@receiver(post_save, sender=User)
+def update_search_vector(sender, instance, **kwargs):
+    """Update search vector when user is saved"""
+    User.objects.filter(pk=instance.pk).update(
+        name_search_vector=SearchVector('name')
+    )

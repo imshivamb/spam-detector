@@ -26,14 +26,15 @@ INSTALLED_APPS = [
     # Third party apps
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'drf_yasg',
     
     # Local apps
-    'apps.users',
-    'apps.contacts',
-    'apps.spam',
-    'apps.search',
+    'apps.users.apps.UsersConfig',
+    'apps.contacts.apps.ContactsConfig',
+    'apps.spam.apps.SpamConfig',
+    'apps.search.apps.SearchConfig',
 ]
 
 MIDDLEWARE = [
@@ -66,6 +67,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+APPEND_SLASH = False
 
 # Database
 DATABASES = {
